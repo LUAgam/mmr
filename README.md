@@ -1,6 +1,6 @@
 # MMR（多模型评审）目录说明
 
-本目录提供一套 **「方案 → 方案复审 → 执行 → 两轮代码复审」** 的 **Cursor custom subagent** 与 **always-on 规则**，用于在主 Agent 会话里按阶段调用，减少单次改动的遗漏与回归风险。
+本目录提供一套 **「方案 → 方案复审 → 执行 → 两轮代码复审」** 的 **Cursor custom subagent** 与 **always-on 规则**，并补充了一套 **E2E 失败用例“双模型分析 → 执行 → 验证”** 提示词与依赖 skill，便于在主 Agent 会话里按阶段调用，减少单次改动的遗漏与回归风险。
 
 规则全文见：`.cursor/rules/mmr-subagent-safety.mdc`（`alwaysApply: true` 时会对工作区内主 Agent 生效，具体以 Cursor 对 rules 的加载方式为准）。
 
@@ -14,8 +14,14 @@
 | `.cursor/agents/mmr-planner.md` | 方案制定（改代码前输出可执行实施方案） |
 | `.cursor/agents/mmr-plan-reviewer.md` | 方案复审（P0/P1/P2 问题清单） |
 | `.cursor/agents/mmr-executor.md` | 按已确认方案做最小必要改动与校验 |
+| `.cursor/agents/mmr-analyze-gpt.md` | E2E 失败分析 A：基于证据收敛根因 |
+| `.cursor/agents/mmr-analyze-gemini.md` | E2E 失败分析 B：从反证与风险角度交叉分析 |
+| `.cursor/agents/mmr-execute.md` | E2E 综合结论后的最小必要修改执行 |
+| `.cursor/agents/mmr-verify.md` | E2E 修改后的构建、热更、case 重跑验证 |
 | `.cursor/agents/mmr-code-reviewer-gpt.md` | 代码复审 A：正确性、回归风险 |
 | `.cursor/agents/mmr-code-reviewer-gemini.md` | 代码复审 B：边界、契约、一致性、隐性风险 |
+| `.cursor/prompts/mmr-dual-analyze-execute-cases.md` | E2E 失败 case 的双模型分析与执行主提示词 |
+| `.codex/skills/analyze-e2e-execute-cases/` | E2E 失败 case 汇总脚本、skill 说明与产物阅读参考 |
 
 ---
 
@@ -28,7 +34,7 @@
 
 子代理在 Cursor 里以 frontmatter 中的 `name` 字段为准，对应名称为：
 
-`mmr-planner`、`mmr-plan-reviewer`、`mmr-executor`、`mmr-code-reviewer-gpt`、`mmr-code-reviewer-gemini`。
+`mmr-planner`、`mmr-plan-reviewer`、`mmr-executor`、`mmr-code-reviewer-gpt`、`mmr-code-reviewer-gemini`、`mmr-analyze-gpt`、`mmr-analyze-gemini`、`mmr-execute`、`mmr-verify`。
 
 ### 2. 何时走完整 MMR 流程
 
@@ -81,7 +87,26 @@
 
 与上表第 5 条及 `mmr-subagent-safety.mdc` 相同，主 Agent 最终回复须包含：**问题理解、根因分析、最终修复方案、实际改动文件、校验结果、GPT 复审结论、Gemini 复审结论、最终风险与建议、是否建议提交**。
 
-### 5. 允许中途停下来问人的情况
+### 5. E2E 失败用例流程
+
+若要处理 `run_e2e.py execute-cases` 产生的失败 case，可直接使用：
+
+- `.cursor/prompts/mmr-dual-analyze-execute-cases.md`
+
+该提示词会串联：
+
+1. `mmr-analyze-gpt`
+2. `mmr-analyze-gemini`
+3. `mmr-execute`
+4. `mmr-verify`
+
+相关辅助资源位于：
+
+- `.codex/skills/analyze-e2e-execute-cases/SKILL.md`
+- `.codex/skills/analyze-e2e-execute-cases/scripts/collect_e2e_failure_context.py`
+- `.codex/skills/analyze-e2e-execute-cases/references/artifact-map.md`
+
+### 6. 允许中途停下来问人的情况
 
 仅当：方案复审 **P0** 且难以小范围收敛、执行阶段高风险阻塞且范围显著扩大、核心重构影响面大、缺关键上下文、或测试/构建表明方向可能错误等（详见规则文件）。其余情况应默认跑完流程，避免频繁确认。
 
